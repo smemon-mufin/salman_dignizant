@@ -1,113 +1,152 @@
-# salman_dignizant
+# Salman Dignizant — Windows (XAMPP) Setup Guide
 
-## Setup Steps
+## 1. Clone the Repository
 
-1. **Clone the repository**
-    ```sh
-    git clone https://github.com/smemon-mufin/salman_dignizant.git
-    cd salman_dignizant
-    ```
+```sh
+git clone https://github.com/smemon-mufin/salman_dignizant.git
+cd salman_dignizant
+```
 
-2. **Install dependencies**
-    - Make sure you have PHP (>=7.2), Composer, and PostgreSQL installed.
-    - Install PHP dependencies:
-      ```sh
-      composer install
-      ```
-    - Required PHP extensions: `pdo_pgsql`
+## 2. Install Dependencies
 
-3. **Configure Database**
-    - The app uses a PostgreSQL database. Database connection settings are in `config/db.php`:
-      ```
-      $dsn = "pgsql:host=localhost;port=5432;dbname=sam;user=postgres;password=salman_user";
-      ```
-    - Create the database (`sam`) and set up the schema (see below).
+- **XAMPP** (PHP ≥ 7.2, PHP 8+ recommended)
+- **Composer** ([getcomposer.org](https://getcomposer.org/))
+- **PostgreSQL** (Install for Windows)
+- Enable `pdo_pgsql` in `C:\xampp\php\php.ini`:
+  ```
+  extension=pdo_pgsql
+  ```
+  Restart Apache after saving.
 
-4. **Setup Database Schema**
+```sh
+composer install
+```
 
-    ```
-    -- Users table
-    CREATE TABLE users (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      role VARCHAR(32) NOT NULL,
-      name VARCHAR(255),
-      email VARCHAR(255)
-    );
+## 3. Configure Database
 
-    -- Projects table
-    CREATE TABLE projects (
-      id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      description TEXT,
-      deadline DATE,
-      created_by INTEGER REFERENCES users(id)
-    );
+Edit `config/db.php`:
+```php
+$dsn = "pgsql:host=localhost;port=5432;dbname=sam;user=postgres;password=salman_user";
+```
+Create DB:
+```sql
+CREATE DATABASE sam;
+```
 
-    -- Project members
-    CREATE TABLE project_members (
-      project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      PRIMARY KEY (project_id, user_id)
-    );
+## 4. Create Tables
 
-    -- Tasks table
-    CREATE TABLE tasks (
-      id SERIAL PRIMARY KEY,
-      project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-      title VARCHAR(255) NOT NULL,
-      description TEXT,
-      status VARCHAR(32),
-      priority VARCHAR(32),
-      assigned_to INTEGER REFERENCES users(id),
-      deadline DATE
-    );
-    ```
+Use pgAdmin or `psql`:
+```sql
+-- Users table
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(255) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(32) NOT NULL,
+  name VARCHAR(255),
+  email VARCHAR(255)
+);
 
-5. **Configure Authentication**
-    - Auth logic is in `config/auth.php`. Sessions are used to manage logins.
-    - Default user creation is manual via SQL.
+-- Projects table
+CREATE TABLE projects (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  deadline DATE,
+  created_by INTEGER REFERENCES users(id)
+);
 
-6. **Start the WebSocket Server**
-    - The project uses [Ratchet](http://socketo.me/) (install via Composer) for PHP WebSocket server.
-    - To start the server:
-      ```sh
-      php public/server.php
-      ```
-    - The server listens on port `8081`.
+-- Project Members table
+CREATE TABLE project_members (
+  project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (project_id, user_id)
+);
 
-7. **Serve the Project**
-    - Serve the `public/` directory using Apache, Nginx, or PHP built-in server:
-      ```sh
-      php -S localhost:8000 -t public
-      ```
+-- Tasks table
+CREATE TABLE tasks (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  status VARCHAR(32),
+  priority VARCHAR(32),
+  assigned_to INTEGER REFERENCES users(id),
+  deadline DATE
+);
+```
 
-8. **Access the app**
-    - Go to [http://localhost:8000](http://localhost:8000) in your browser.
+## 5. Authentication Setup
 
-## WebSocket Server Instructions
+- Logic: `config/auth.php`
+- Sessions for login/logout
+- Create users manually in DB (hash password using PHP `password_hash()`)
 
-- The WebSocket server is implemented in `public/server.php` using Ratchet.
-- It handles real-time notifications for project/task events (status changes, comments, assignments).
-- Clients connect via:
-    ```js
-    const ws = new WebSocket('ws://localhost:8081');
-    ```
-- Typical message structure:
-    ```js
-    ws.send(JSON.stringify({
-      type: 'join',      // or 'leave', 'status', 'comment', 'assign'
-      userId: <user_id>,
-      projectId: <project_id>,
-      ...
-    }));
-    ```
-- See `assets/websocket.js` for browser-side code and usage.
+## 6. Start WebSocket Server
+
+Install Ratchet:
+```sh
+composer require cboden/ratchet
+```
+Start server (in `public/`):
+```sh
+php server.php
+```
+Runs at: `ws://localhost:8081`
+
+## 7. Serve the Application (Using XAMPP)
+
+Place `salman_dignizant` folder in `C:\xampp\htdocs\`.
+
+Access:
+```
+http://localhost/salman_dignizant/public/
+```
+
+Or use PHP built-in server:
+```sh
+php -S localhost:8000 -t public
+```
+
+## 8. Access the Application
+
+Open:
+```
+http://localhost/salman_dignizant/public/
+```
+
+## 9. WebSocket Client Integration
+
+Example (`assets/websocket.js`):
+```js
+const ws = new WebSocket('ws://localhost:8081');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'join',
+    userId: 1,
+    projectId: 2
+  }));
+};
+```
 
 ## Additional Notes
 
-- Project and task management UI is in `public/projects.php` and `public/tasks.php`.
-- AJAX endpoints for CRUD are in `public/ajax_projects.php` and `public/ajax_tasks.php`.
-- Real-time updates for tasks/comments are handled by WebSocket messages.
-- For development, ensure all dependencies and database are properly configured.
+- **UI Files**:
+  - Projects: `public/projects.php`
+  - Tasks: `public/tasks.php`
+- **AJAX Endpoints**:
+  - `public/ajax_projects.php`
+  - `public/ajax_tasks.php`
+- **WebSocket Live Updates**:
+  - Sent from `public/server.php`
+  - Handled by frontend in `assets/websocket.js`
+
+---
+
+**Troubleshooting & Windows Tips**
+
+- Restart Apache after changing PHP extensions.
+- Use CMD/Git Bash as administrator if you face permission issues.
+- Allow port `8081` in Windows Firewall for WebSocket.
+- Test DB credentials with pgAdmin or `psql`.
